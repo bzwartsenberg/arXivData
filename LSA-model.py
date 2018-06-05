@@ -20,24 +20,34 @@ from sklearn.decomposition import TruncatedSVD
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.regularizers import l2
+import keras.backend as K
 
+import pickle
 
 
 
 class LSATextClassifier():
 
 
-    def __init__(self, data, train_split = 0.7, stopwords = None, random_seed = 0, N_vec = 100, min_df = 2):
+    def __init__(self, data, savename = None, run_transform = True,
+                 train_split = 0.7, random_seed = 0, tfidf_params = {},
+                 svd_params = {},keras_params = {}):
         """LSA classifier
         Args:
             data: tuple containing (data_X,data_y)
                 data_X: list of untokenized text samples
                 data_y: numpy array of one-hot encoded classes
-            stopwords: a list of stopwords to be passed to TfidfVectorizer, if 'english' is passed, the default is used
+            savename: save base path, used to save savename_svd.pickle, etc.
+            run_transform: bool, if True, run and fit the tf-idf vectorizer
+            train_split: split training into a train and validation set
             random_seed: seed to pass to loading function
-            N_vec: length of the word vectors
-            min_df: minimal number doc frequency of words to be taken into account"""   
-            
+            tfidf_params: dictionary of parameters to pass to tfidfvectorizer
+            svd_params: dictionary of parameters to pass to svd
+            keras_params: dictionary of parameters to pass to logistic regression model
+            """            
+        ## put class initialization hyperparamters in a dict     
+        self.savename = savename    
+        
         self.random_seed = random_seed
 
         if random_seed is not None:
@@ -50,18 +60,31 @@ class LSATextClassifier():
         self.train_y = np.array([data[1][i] for i in p[:split_n]])
         self.val_X = [data[0][i] for i in p[split_n:]]
         self.val_y = np.array([data[1][i] for i in p[split_n:]])
-   
+
             
-        self.stopwords = stopwords
-        self.N_vec = N_vec
-        self.min_df = min_df        
-        self.train_word_vectors(self.train_X)
-    
-        self.transform_word_vectors()
-        
+        self.stopwords = tfidf_params['stopwords'] if 'stopwords' in tfidf_params else None
+        self.min_df = tfidf_params['min_df'] if 'min_df' in tfidf_params else 2     
+        self.N_vec = svd_params['N_vec'] if 'N_vec' in svd_params else 100
+        self.pos_weights = keras_params['pos_weights'] if 'pos_weights' in keras_params else np.ones((self.train_y.shape[1]))
+        ## add option to load.
+        ## add hyperparameter options to provide to TFidfVectorizer
+        if run_transform:
+            self.train_word_vectors(self.train_X)
+            self.transform_word_vectors()
+        else:
+            print('Loading svd and tfidf')
+            if savename is None:
+                print('Please Provide savename if not training for the first time')
+            else:
+                with open(self.savename + '_svd.obj','rb') as f:
+                    self.svd = pickle.load(f)
+                with open(self.savename + '_tfidf.obj','rb') as f:
+                    self.vectorizer = pickle.load(f)
+                with open(self.savename + '_X_vec.obj','rb') as f:
+                    self.train_X_vec,self.val_X_vec = pickle.load(f)        
      
 
-    def train_word_vectors(self,docs):
+    def train_word_vectors(self,docs,):
         """Train the tfidf-svd vectorizer
         Args:
             docs: list of tokenized input strings
@@ -82,6 +105,12 @@ class LSATextClassifier():
         
         self.svd = TruncatedSVD(self.N_vec)
         self.svd.fit(self.vectorizer.transform(docs))
+        
+        if self.savename is not None:
+            with open(self.savename + '_svd.obj','wb') as f:
+                pickle.dump(self.svd,f)
+            with open(self.savename + '_tfidf.obj','wb') as f:
+                pickle.dump(self.vectorizer,f)        
         ##save?
         
         
@@ -100,16 +129,23 @@ class LSATextClassifier():
         
         self.train_X_vec = self.get_word_vectors(self.train_X)
         self.val_X_vec = self.get_word_vectors(self.val_X)
+        if self.savename is not None:
+            with open(self.savename + '_X_vec.obj','wb') as f:
+                pickle.dump((self.train_X_vec,self.val_X_vec),f)        
 
 
     def build(self):
         """Build and compile the logistic regression model in Keras"""
+        
+        lossfun = create_weighted_binary_crossentropy(self.pos_weights)
+        
         self.model = Sequential()
-        self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='softmax'))
+        self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
 
         self.model.summary()
 
-        self.model.compile(optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
+        #multi onehot: binary cross entropy and binary accuracy
+        self.model.compile(optimizer='sgd', loss=lossfun, metrics=['binary_accuracy'])
         
 
 
@@ -158,6 +194,41 @@ class LSATextClassifier():
         
         
         
+        
+        
+def create_weighted_binary_crossentropy(pos_weights):
+    """Binary crossentropy between an output tensor and a target tensor.
+    # Arguments
+        target: A tensor with the same shape as `output`.
+        output: A tensor.
+        from_logits: Whether `output` is expected to be a logits tensor.
+            By default, we consider that `output`
+            encodes a probability distribution.
+    # Returns
+        A tensor.
+    """
+    # Note: tf.nn.sigmoid_cross_entropy_with_logits
+    # expects logits, Keras expects probabilities.
+    
+    #define the function:
+    pos_weight = K.tf.convert_to_tensor(pos_weights, dtype = K.tf.float32)        
+        
+    def loss_fun(target, output, from_logits=False):
+    
+        if not from_logits:
+            # transform back to logits
+            _epsilon = K.tf.convert_to_tensor(K.epsilon(), dtype=output.dtype.base_dtype)
+            output = K.tf.clip_by_value(output, _epsilon, 1 - _epsilon)
+            output = K.tf.log(output / (1 - output))
+    
+        return K.mean(K.tf.nn.weighted_cross_entropy_with_logits(targets = target,
+                                                       logits=output,pos_weight = pos_weight))
+    return loss_fun
+
+
+    
+        
+        
 if __name__ == "__main__":
     
     trainpath = 'train_data/train_data.json'
@@ -177,15 +248,23 @@ if __name__ == "__main__":
                          'cond-mat.other',
                          'hep-th']
 #    
-    train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories,
-                                                  convert_to_catnum = True, 
-                                ignore_others = False, split_multilabel = True, 
-                                shuffle_seed = 0, to_one_hot = True, 
+    train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories, ignore_others = False, 
+                                shuffle_seed = 0, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True)
+
+
+    class_weights = 1/np.mean(train_y, axis = 0)
     
-    ls = LSATextClassifier((train_X,train_y), train_split = 0.7, stopwords = None, random_seed = 0, N_vec = 100, min_df = 2)
+    tfidf_params = {'min_df' : 2,
+                    'stopwords' : None}
+    svd_params = {'N_vec' : 100}
+
+    keras_params = {'pos_weights' : class_weights}    
+    savename = 'ls_save'
+    ls = LSATextClassifier((train_X,train_y),savename = savename, train_split = 0.7, 
+                           random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
+                           svd_params = svd_params,keras_params = keras_params)
     
-    ls.transform_word_vectors()
     ls.build()
-    ls.train()
+    ls.train(batch_size=200,nb_epoch=50)
 
