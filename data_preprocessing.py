@@ -126,17 +126,16 @@ def tokenize(text, filterset = None):
     
     
     
-def generate_Xy_data_categories(data, inc_categories,convert_to_catnum = True, 
-                                ignore_others = True, split_multilabel = True, 
-                                shuffle_seed = None, to_one_hot = True, 
+def generate_Xy_data_categories(data, inc_categories, ignore_others = True, 
+                                shuffle_seed = None, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True):
     """Generate data_X and data_y from data, with y labels from categories
     Args:
         data: list of entries
         inc_categories: list of categories to include
         ignore_others: if set to True, no "others" category will be made
-        split_multilabel: if set to True, entries with multiple labels will be duplicated into separate entries, 
-                            if false, only the first category will be used"""
+
+        """
                
     data_X, data_y = [],[]    
 
@@ -145,6 +144,7 @@ def generate_Xy_data_categories(data, inc_categories,convert_to_catnum = True,
                         
     for entry in data:
         abstract = entry['abstract']
+        data_X.append(abstract)
 
         categories = entry['categories'].split(' ')
     
@@ -153,14 +153,20 @@ def generate_Xy_data_categories(data, inc_categories,convert_to_catnum = True,
         else:
             categories = [cat if cat in inc_categories else 'other' for cat in categories]
         
+        if ydatatype == 'onehot':
+            data_y.append(np.zeros((len(inc_categories))))
+        else:
+            data_y.append([])
+        
         for cat in categories:
-            data_X.append(abstract)
-            if convert_to_catnum:
-                data_y.append(inc_categories.index(cat))
-            else:
-                data_y.append(cat)
-            if not split_multilabel: #only add the first if not splitting multilabel
-                break
+            if ydatatype == 'catnum':
+                data_y[-1].append(inc_categories.index(cat))
+            elif ydatatype == 'cat':
+                data_y[-1].append(cat)
+            elif ydatatype == 'onehot':
+                #automatically avoids double categories
+                data_y[-1][inc_categories.index(cat)] = 1.0
+
             
     if shuffle_seed is not None:
         np.random.seed(shuffle_seed)
@@ -169,9 +175,9 @@ def generate_Xy_data_categories(data, inc_categories,convert_to_catnum = True,
         data_X = [data_X[i] for i in p]
         data_y = [data_y[i] for i in p]
 
-    # convert to one-hot vectors, but only if categories were converted to numbers
-    if convert_to_catnum and to_one_hot:
-        data_y = OneHotEncoder(n_values = len(inc_categories), sparse = False).fit_transform(np.array(data_y).reshape((-1,1)))
+    # convert to numpy array if onehot
+    if ydatatype == 'onehot':
+        data_y = np.array(data_y)
     if clean_x:
         data_X = cleandata(data_X, keep_tags = keep_latex_tags)
         
@@ -182,10 +188,10 @@ def generate_Xy_data_categories(data, inc_categories,convert_to_catnum = True,
 
 if __name__ == "__main__":
     
-    try:
-        type(data[0])
-    except NameError:
-        data = loaddata(datapath)
+#    try:
+#        type(data[0])
+#    except NameError:
+#        data = loaddata(datapath)
 #
 #    #do some analysis:
 #
@@ -294,9 +300,9 @@ if __name__ == "__main__":
 #    print('Inc cats: %s' % inc_categories)
 #        
 #        
-#    trainpath = 'train_data/train_data.json'
-#    testpath = 'test_data/test_data.json'
-#    traindata,testdata = loadfile(trainpath),loadfile(testpath)
+    trainpath = 'train_data/train_data.json'
+    testpath = 'test_data/test_data.json'
+    traindata,testdata = loadfile(trainpath),loadfile(testpath)
 #
     inc_categories =    ['cond-mat.mes-hall',
                          'cond-mat.mtrl-sci',
@@ -311,10 +317,8 @@ if __name__ == "__main__":
                          'cond-mat.other',
                          'hep-th']
 #    
-    train_X,train_y = generate_Xy_data_categories(traindata, inc_categories,
-                                                  convert_to_catnum = True, 
-                                ignore_others = False, split_multilabel = True, 
-                                shuffle_seed = 0, to_one_hot = True, 
+    train_X,train_y = generate_Xy_data_categories(traindata, inc_categories, ignore_others = False, 
+                                shuffle_seed = 0, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True)
 #        
     ##find some latex tags:
