@@ -9,7 +9,7 @@ Created on Sun Jun  3 21:25:02 2018
 #### LSA supervised classifier
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import data_preprocessing as dp
 
@@ -19,7 +19,7 @@ from sklearn.decomposition import TruncatedSVD
 
 from keras.models import Sequential
 from keras.layers import Dense
-from keras.regularizers import l2
+#from keras.regularizers import l2
 import keras.backend as K
 
 import pickle
@@ -29,7 +29,7 @@ import pickle
 class LSATextClassifier():
 
 
-    def __init__(self, data, savename = None, run_transform = True,
+    def __init__(self, train_data, test_data, savename = None, run_transform = True,
                  train_split = 0.66, random_seed = 0, tfidf_params = {},
                  svd_params = {},keras_params = {}):
         """LSA classifier
@@ -56,21 +56,25 @@ class LSATextClassifier():
             np.random.seed(random_seed)
 
             
-        p = np.random.permutation(len(data[0]))
-        split_n = int(train_split*len(data[0]))
-        self.train_X = [data[0][i] for i in p[:split_n]]
-        self.train_y = np.array([data[1][i] for i in p[:split_n]])
-        self.val_X = [data[0][i] for i in p[split_n:]]
-        self.val_y = np.array([data[1][i] for i in p[split_n:]])
+        p = np.random.permutation(len(train_data[0]))
+        split_n = int(train_split*len(train_data[0]))
+        self.train_X = [train_data[0][i] for i in p[:split_n]]
+        self.train_y = np.array([train_data[1][i] for i in p[:split_n]])
+        #split val data off the train data, so can x-validate by changing random_seed
+        self.val_X = [train_data[0][i] for i in p[split_n:]]
+        self.val_y = np.array([train_data[1][i] for i in p[split_n:]])
+        self.test_X = test_data[0]
+        self.test_y = test_data[1]
 
             
         self.stopwords = tfidf_params['stopwords'] if 'stopwords' in tfidf_params else None
         self.min_df = tfidf_params['min_df'] if 'min_df' in tfidf_params else 2     
         self.N_vec = svd_params['N_vec'] if 'N_vec' in svd_params else 100
         self.pos_weights = keras_params['pos_weights'] if 'pos_weights' in keras_params else np.ones((self.train_y.shape[1]))
-        ## add option to load.
+        
         ## add hyperparameter options to provide to TFidfVectorizer
         if run_transform:
+            #add options to run train_word_vectors on train_X, train_X+val_X, train_X+val_X+test_X 
             self.train_word_vectors(self.train_X)
             self.transform_word_vectors()
         else:
@@ -83,7 +87,7 @@ class LSATextClassifier():
                 with open(self.savename + '_tfidf.obj','rb') as f:
                     self.vectorizer = pickle.load(f)
                 with open(self.savename + '_X_vec.obj','rb') as f:
-                    self.train_X_vec,self.val_X_vec = pickle.load(f)        
+                    self.train_X_vec,self.val_X_vec,self.test_X_vec = pickle.load(f)        
      
 
     def train_word_vectors(self,docs,):
@@ -130,9 +134,10 @@ class LSATextClassifier():
         
         self.train_X_vec = self.get_word_vectors(self.train_X)
         self.val_X_vec = self.get_word_vectors(self.val_X)
+        self.test_X_vec = self.get_word_vectors(self.test_X)
         if self.savename is not None:
             with open(self.savename + '_X_vec.obj','wb') as f:
-                pickle.dump((self.train_X_vec,self.val_X_vec),f)        
+                pickle.dump((self.train_X_vec,self.val_X_vec,self.test_X_vec),f)        
 
 
     def build(self):
@@ -263,7 +268,11 @@ if __name__ == "__main__":
     train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories, ignore_others = False, 
                                 shuffle_seed = 0, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True)
+    test_X,test_y = dp.generate_Xy_data_categories(testdata, inc_categories, ignore_others = False, 
+                                shuffle_seed = 0, ydatatype = 'onehot',
+                                clean_x = True, keep_latex_tags = True)
 
+    
     class_weights = 1/np.mean(train_y, axis = 0)
     
     tfidf_params = {'min_df' : 2,
@@ -272,11 +281,11 @@ if __name__ == "__main__":
 
     keras_params = {'pos_weights' : class_weights}    
     savename = 'ls_save'
-    ls = LSATextClassifier((train_X,train_y),savename = savename, train_split = 0.7, 
-                           random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
+    ls = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
+                           random_seed = 0,run_transform = True,tfidf_params = tfidf_params,
                            svd_params = svd_params,keras_params = keras_params)
     
     ls.build()
-    ls.train(batch_size=200,nb_epoch=75)
+    ls.train(batch_size=200,nb_epoch=30)
     
 

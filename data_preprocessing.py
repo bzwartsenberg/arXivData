@@ -140,7 +140,8 @@ def generate_Xy_data_categories(data, inc_categories, ignore_others = True,
     data_X, data_y = [],[]    
 
     if not ignore_others:
-        inc_categories.append('other')
+        if not 'other' in inc_categories:
+            inc_categories.append('other')
                         
     for entry in data:
         abstract = entry['abstract']
@@ -188,118 +189,7 @@ def generate_Xy_data_categories(data, inc_categories, ignore_others = True,
 
 if __name__ == "__main__":
     
-#    try:
-#        type(data[0])
-#    except NameError:
-#        data = loaddata(datapath)
-#
-#    #do some analysis:
-#
-#    ## read a couple:
-#    print(data[10])
-#
-#    
-#    ##abstract lengths:
-#    abs_length = np.array([len(entry['abstract']) for entry in data])
-#    print('Mean abstract character length: %0.1f' % np.mean(abs_length))
-#    
-#    num_authors = np.array([len(entry['authors']) for entry in data])
-#    print('Mean number of authors: %0.1f' % np.mean(num_authors))
-#    
-#    #check what features the entries have and how often they occur
-#    features = []
-#    occurences = []
-#    for entry in data:
-#        for key in entry.keys():
-#            if not key in features:
-#                features.append(key)
-#                occurences.append(0)
-#                
-#            occurences[features.index(key)] += 1
-#
-#    #sort:
-#    features = [feature for _,feature in reversed(sorted(zip(occurences,features)))]
-#    occurences = list(reversed(sorted(occurences)))
-#
-#    for feature,occurence in zip(features,occurences):
-#        print('Feature %s occurs %s times' % (feature, occurence))
-#        
-#        
-#    #analyze labels:e        
-#    journal_refs = []
-#    dois = []
-#    categories = []
-#    numcategories = []
-#    unique_categories = []
-#    unique_categories_occurences = []
-#
-#    for entry in data:
-#        try:
-#            journal_ref = entry['journal-ref']
-#        except KeyError:
-#            journal_ref = None
-#            
-#        try:
-#            doi = entry['doi']
-#        except KeyError:
-#            doi = None
-#            
-#        journal_refs.append(journal_ref)
-#        dois.append(doi)
-#        cat = entry['categories'].split(' ')
-#        categories.append(cat)
-#        numcategories.append(len(cat))
-#        
-#        for c in cat:
-#            if not c in unique_categories:
-#                unique_categories.append(c)
-#                unique_categories_occurences.append(0)
-#            unique_categories_occurences[unique_categories.index(c)] += 1
-#        
-#    
-#    unique_categories = [cat for _,cat in reversed(sorted(zip(unique_categories_occurences,unique_categories)))]
-#    unique_categories_occurences = list(reversed(sorted(unique_categories_occurences)))
-#
-#    for cat,occ in zip(unique_categories,unique_categories_occurences):
-#        print('Feature %s occurs %s times' % (cat, occ))
-#                    
-#        
-#    #the original sorting is a little odd, but basically it starts in 2007 with the new
-#    # id labels, and then somewhere at 150k, you return to 1996 and get the rest of the articles        
-#    ids = []
-#    for entry in data:
-#        ids.append(entry['id'])
-#        
-#    
-#        
-#    ### to do: analyze labels on journal   
-#    
-#    #first: check which is the better feature to parse, doi or journal-ref?
-#    #encode: 'both' if article has both, 'ref', 'doi' or 'none'
-#    which_journal_ref = []
-#    for entry in data:
-#        keys = entry.keys()
-#        if 'doi' in keys and 'journal-ref' in keys:
-#            which_journal_ref.append('both')
-#        elif 'doi' in keys and not 'journal-ref' in keys:
-#            which_journal_ref.append('doi')
-#        elif not 'doi' in keys and 'journal-ref' in keys:
-#            which_journal_ref.append('ref')      
-#        else:
-#            which_journal_ref.append('none')
-#        
-#    journal_ref_types = ['both','doi','ref','none']
-#    ref_type_counts = [which_journal_ref.count(ref_type) for ref_type in journal_ref_types]
-#    for ref_type_count,ref_type in zip(ref_type_counts,journal_ref_types):
-#        print(ref_type,ref_type_count)
-#    
-#
-#    ##########Load and convert train and test data:
-#    print(unique_categories_occurences[0:12])
-#    inc_categories = list(unique_categories[0:12])
-#    print('Inc cats: %s' % inc_categories)
-#        
-#        
+     
     trainpath = 'train_data/train_data.json'
     testpath = 'test_data/test_data.json'
     traindata,testdata = loadfile(trainpath),loadfile(testpath)
@@ -320,44 +210,3 @@ if __name__ == "__main__":
     train_X,train_y = generate_Xy_data_categories(traindata, inc_categories, ignore_others = False, 
                                 shuffle_seed = 0, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True)
-#        
-    ##find some latex tags:
-#    orig = []
-#    after = []
-#    find_n = 200
-#    i = 0
-#    for a in train_X:
-#        
-#        if '\\' in a:
-#            i += 1
-#            orig.append(a)
-#            after.append(remove_latex(a, keep_tags = False))
-#            if i >= find_n:
-#                break
-#            
-#    clean_train_X = [remove_latex(text, keep_tags = False) for text in train_X[0:1000]]
-#        
-    #train_X[102231] # has latex tags
-    
-#    clean_train_X = cleandata(train_X, keep_tags = True)
-#    
-#    run_word_diagnostics = True
-#    if run_word_diagnostics:
-#        #some diagnostics:
-#            
-#        all_words = [word for text in clean_train_X for word in text]        
-#            
-#        counts = Counter(all_words)
-#        
-#        counts_sort = list(reversed(sorted(counts.items(),key=lambda x:x[1])))
-#
-#        print('Total unique words = %s' % len(counts))
-#        print('Most occuring tokens are are:\n'  + '\n'.join([str(x) for x in counts_sort[0:10]]) + '\n\n')
-#        freqs = [x[1] for x in counts_sort]
-#        for i in range(1,20):
-#            print('There are %s of words with more than %s occurences' % (freqs.index(i),i))
-#            
-#        #create dictionary with occurences:
-#        word_occurences = {}
-#        [exec('word_occurences[a[0]] = a[1]') for a in counts_sort]
-#                        

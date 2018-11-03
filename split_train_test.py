@@ -49,7 +49,8 @@ if __name__ == "__main__":
     data = loaddata(datapath)
     
     seed = 0
-    ratio = 0.6
+    #Use 50:25:25 (other 25 will be split off from training set later for x-validation)
+    ratio = 0.75 
     
     traindata,testdata = split_train_and_test(data, ratio, seed)
     
