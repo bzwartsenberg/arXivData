@@ -30,7 +30,7 @@ class LSATextClassifier():
 
 
     def __init__(self, data, savename = None, run_transform = True,
-                 train_split = 0.7, random_seed = 0, tfidf_params = {},
+                 train_split = 0.66, random_seed = 0, tfidf_params = {},
                  svd_params = {},keras_params = {}):
         """LSA classifier
         Args:
@@ -40,7 +40,9 @@ class LSATextClassifier():
             savename: save base path, used to save savename_svd.pickle, etc.
             run_transform: bool, if True, run and fit the tf-idf vectorizer
             train_split: split training into a train and validation set
-            random_seed: seed to pass to loading function
+            random_seed: seed to pass to loading function, used to 
+                        randomize training data before splitting into train/val set
+                        can be used for x-validation
             tfidf_params: dictionary of parameters to pass to tfidfvectorizer
             svd_params: dictionary of parameters to pass to svd
             keras_params: dictionary of parameters to pass to logistic regression model
@@ -111,7 +113,6 @@ class LSATextClassifier():
                 pickle.dump(self.svd,f)
             with open(self.savename + '_tfidf.obj','wb') as f:
                 pickle.dump(self.vectorizer,f)        
-        ##save?
         
         
     def get_word_vectors(self, docs):
@@ -204,32 +205,36 @@ class LSATextClassifier():
         
         
 def create_weighted_binary_crossentropy(pos_weights):
-    """Binary crossentropy between an output tensor and a target tensor.
-    # Arguments
-        target: A tensor with the same shape as `output`.
-        output: A tensor.
-        from_logits: Whether `output` is expected to be a logits tensor.
-            By default, we consider that `output`
-            encodes a probability distribution.
-    # Returns
-        A tensor.
+    """Generate a loss weighted binary crossentropy lossfunction.
+    Arguments:
+        pos_weights: weights for different one_hot positions
+    Returns:
+        a function with behavior:
+        Arguments:
+            output: A tensor containing network outputs.
+            target: A tensor containing the required outputs (labels)
+            from_logits: If False, output is expected to be probabilities, if
+                    True, output is expectedto be logits.
+        Returns:
+            Weighted binary crossentropy for the given input tensors
     """
-    # Note: tf.nn.sigmoid_cross_entropy_with_logits
-    # expects logits, Keras expects probabilities.
     
-    #define the function:
+    
+    # Note: tf.nn.sigmoid_cross_entropy_with_logits
+    # expects logits, Keras expects to pass probabilities to the function.
+    
     pos_weight = K.tf.convert_to_tensor(pos_weights, dtype = K.tf.float32)        
         
-    def loss_fun(target, output, from_logits=False):
+    def loss_fun(target, output, from_logits = False):
     
         if not from_logits:
             # transform back to logits
             _epsilon = K.tf.convert_to_tensor(K.epsilon(), dtype=output.dtype.base_dtype)
-            output = K.tf.clip_by_value(output, _epsilon, 1 - _epsilon)
-            output = K.tf.log(output / (1 - output))
+            output = K.tf.clip_by_value(output, _epsilon, 1-_epsilon)
+            output = K.tf.log(output/(1-output))
     
         return K.mean(K.tf.nn.weighted_cross_entropy_with_logits(targets = target,
-                                                       logits=output,pos_weight = pos_weight))
+                                                       logits = output,pos_weight = pos_weight))
     return loss_fun
 
 
