@@ -140,12 +140,19 @@ class LSATextClassifier():
         lossfun = create_weighted_binary_crossentropy(self.pos_weights)
         
         self.model = Sequential()
-        self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
+#        #single:
+#        self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
 
+        #double:
+        self.model.add(Dense(100, input_dim=self.N_vec, activation='relu'))
+        self.model.add(Dense(100, activation='relu'))
+        self.model.add(Dense(100, activation='relu'))
+        self.model.add(Dense(self.train_y.shape[1], activation='sigmoid'))
+        
         self.model.summary()
 
         #multi onehot: binary cross entropy and binary accuracy
-        self.model.compile(optimizer='sgd', loss=lossfun, metrics=['binary_accuracy'])
+        self.model.compile(optimizer='adam', loss=lossfun, metrics=['binary_accuracy'])
         
 
 
@@ -252,7 +259,6 @@ if __name__ == "__main__":
                                 shuffle_seed = 0, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True)
 
-
     class_weights = 1/np.mean(train_y, axis = 0)
     
     tfidf_params = {'min_df' : 2,
@@ -266,5 +272,6 @@ if __name__ == "__main__":
                            svd_params = svd_params,keras_params = keras_params)
     
     ls.build()
-    ls.train(batch_size=200,nb_epoch=50)
+    ls.train(batch_size=200,nb_epoch=75)
+    
 
