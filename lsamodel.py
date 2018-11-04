@@ -207,20 +207,31 @@ class LSATextClassifier():
         returns:
             the model's accuracy classifying the test data.
             """
+        test_X, test_y = testdata
+        test_X_vec = self.get_word_vectors(test_X)
 
-        score = self.model.evaluate(self.test_X_vec, self.test_y, verbose=0)
+        score = self.model.evaluate(test_X_vec, test_y, verbose=0)
     
         print('loss:', score[0])
         print('binary accuracy:', score[1])
         return score[1]
 
-    def predict(self, reviews):
-        """Predict the sentiment of unlabelled reviews.
+    def predict(self, docs, return_probabilities = True):
+        """Predict the sentiment of unlabelled docs.
+        Args:
+            docs: list of docs to be classified
+            return_probabilities: if true, return the probabilities, 
+                                otherwise return one-hot vectors (rounded)
         
-        returns: the predicted label of :review:
+        returns: the predicted labels or probabilities of docs
         """
+        probabilities = self.model.predict(self.get_word_vectors(docs))
+        
+        if return_probabilities:
+            return probabilities
+        else:
+            return np.round(probabilities)
 
-        return self.model.predict_classes(self.get_word_vectors(reviews))
         
         
         
@@ -315,9 +326,3 @@ if __name__ == "__main__":
     savepath = 'save/keras_model.h5'
     ls.model.save(savepath)
     
-
-    ls2 = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
-                       random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
-                       svd_params = svd_params,keras_params = keras_params)
-    ls2.build(loadpath = savepath)
-
