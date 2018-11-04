@@ -313,7 +313,5 @@ if __name__ == "__main__":
     fig.savefig('token_stats_vs_methods')
     #histogram of occurence on x-axis, vs number of features on y-axis
         
-   
-    #note: printing words with high occurence and low meaning should maybe be added to stopwords
-        
+           
 #    f.close()

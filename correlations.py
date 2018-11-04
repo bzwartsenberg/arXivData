@@ -24,7 +24,28 @@ import palettable
 
 
 
+
+class Tee():
+    def __init__(self, *files):
+        self.files = files
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush() 
+    def flush(self) :
+        for f in self.files:
+            f.flush()
+
+
+
+
 if __name__ == "__main__":
+    
+    ###for logging:
+    f = open('correlations_out.txt', 'w')
+    original = sys.stdout
+    sys.stdout = Tee(sys.stdout, f)  
+    
     
     trainpath = 'train_data/train_data.json'
     traindata = dp.loadfile(trainpath)             
@@ -58,7 +79,7 @@ if __name__ == "__main__":
 
 
     load = True
-    savename = 'countvectorizer.obj'
+    savename = 'save/countvectorizer.obj'
     
     if load:
         with open(savename,'rb') as f:
@@ -75,7 +96,7 @@ if __name__ == "__main__":
 
 
         
-    cor_savename = 'correlations_array.obj'
+    cor_savename = 'save/correlations_array.obj'
     if load:
         with open(cor_savename,'rb') as f:
                 correlations = pickle.load(f)    
@@ -173,7 +194,7 @@ if __name__ == "__main__":
         print('Word \'{}\' has an occurence of {:.4f} mean absolute correlation of {:.4f}'.format(words[i],np.mean(np.abs(correlations[:,i])),wcounts[i]/tot_words))
         inferred_stop_words.append(words[i])
     #save these inferred stopwords:
-    with open('inferred_stop_words.boj','wb') as f:
+    with open('save/inferred_stop_words.boj','wb') as f:
         pickle.dump(inferred_stop_words,f)
         
 
