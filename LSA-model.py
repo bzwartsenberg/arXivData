@@ -15,10 +15,12 @@ import data_preprocessing as dp
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
-#from nltk.corpus import stopwords
+from nltk.corpus import stopwords
 
 from keras.models import Sequential
+from keras.models import load_model
 from keras.layers import Dense
+
 #from keras.regularizers import l2
 import keras.backend as K
 
@@ -72,7 +74,7 @@ class LSATextClassifier():
         self.min_df = tfidf_params['min_df'] if 'min_df' in tfidf_params else 2     
         self.N_vec = svd_params['N_vec'] if 'N_vec' in svd_params else 100
         self.pos_weights = keras_params['pos_weights'] if 'pos_weights' in keras_params else np.ones((self.train_y.shape[1]))
-        self.net_shape = keras_params['pos_weights'] if 'pos_weights' in keras_params else []
+        self.net_shape = keras_params['net_shape'] if 'net_shape' in keras_params else []
         self.activation = keras_params['activation'] if 'activation' in keras_params else 'relu'
         
         ## add hyperparameter options to provide to TFidfVectorizer
@@ -143,30 +145,37 @@ class LSATextClassifier():
                 pickle.dump((self.train_X_vec,self.val_X_vec,self.test_X_vec),f)        
 
 
-    def build(self):
+    def build(self, loadpath = None):
         """Build and compile the logistic regression model in Keras"""
         
-        lossfun = create_weighted_binary_crossentropy(self.pos_weights)
-        
-        self.model = Sequential()
-        #single:
-        if self.net_shape == []:
-            self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
-        #multi:
+        if loadpath is not None:
+            print('Loading model from path: {}'.format(loadpath))
+            lossfun = create_weighted_binary_crossentropy(self.pos_weights)            
+            self.model = load_model(loadpath, custom_objects={'lossfun': lossfun})            
+            self.model.summary()
         else:
-            #first layer:
-            self.model.add(Dense(self.net_shape[0], input_dim=self.N_vec, activation=self.activation))
-            #other layers
-            for ns in self.net_shape[1:]:
-                self.model.add(Dense(ns, activation=self.activation))
-            #last layer:
-            self.model.add(Dense(self.train_y.shape[1], activation='sigmoid'))
-
-        
-        self.model.summary()
-
-        #multi onehot: binary cross entropy and binary accuracy
-        self.model.compile(optimizer='adam', loss=lossfun, metrics=['binary_accuracy'])
+            print('Generating new model.')
+            lossfun = create_weighted_binary_crossentropy(self.pos_weights)
+            
+            self.model = Sequential()
+            #single:
+            if self.net_shape == []:
+                self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
+            #multi:
+            else:
+                #first layer:
+                self.model.add(Dense(self.net_shape[0], input_dim=self.N_vec, activation=self.activation))
+                #other layers
+                for ns in self.net_shape[1:]:
+                    self.model.add(Dense(ns, activation=self.activation))
+                #last layer:
+                self.model.add(Dense(self.train_y.shape[1], activation='sigmoid'))
+    
+            
+            self.model.summary()
+    
+            #multi onehot: binary cross entropy and binary accuracy
+            self.model.compile(optimizer='adam', loss=lossfun, metrics=['binary_accuracy'])
         
 
 
@@ -238,7 +247,7 @@ def create_weighted_binary_crossentropy(pos_weights):
     
     pos_weight = K.tf.convert_to_tensor(pos_weights, dtype = K.tf.float32)        
         
-    def loss_fun(target, output, from_logits = False):
+    def lossfun(target, output, from_logits = False):
     
         if not from_logits:
             # transform back to logits
@@ -248,7 +257,7 @@ def create_weighted_binary_crossentropy(pos_weights):
     
         return K.mean(K.tf.nn.weighted_cross_entropy_with_logits(targets = target,
                                                        logits = output,pos_weight = pos_weight))
-    return loss_fun
+    return lossfun
 
 
     
@@ -283,17 +292,32 @@ if __name__ == "__main__":
     
     class_weights = 1/np.mean(train_y, axis = 0)
     
+    #load stopwords inferred from correlations:
+    with open('save/inferred_stop_words.boj','rb') as f:
+        inferred_stop_words = pickle.load(f)
+            
+    
+    #note: from the corrlations, it seems that "that" and "and" actually hold some 
+    # value, the model might train better without the stopwords.words('english') added.
     tfidf_params = {'min_df' : 2,
-                    'stopwords' : None}
+                    'stopwords' : inferred_stop_words + stopwords.words('english')}
     svd_params = {'N_vec' : 100}
 
     keras_params = {'pos_weights' : class_weights}    
-    savename = 'ls_save'
+    savename = 'save/ls_save'
     ls = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
-                           random_seed = 0,run_transform = True,tfidf_params = tfidf_params,
+                           random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
                            svd_params = svd_params,keras_params = keras_params)
     
     ls.build()
     ls.train(batch_size=200,nb_epoch=30)
     
+    savepath = 'save/keras_model.h5'
+    ls.model.save(savepath)
+    
+
+    ls2 = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
+                       random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
+                       svd_params = svd_params,keras_params = keras_params)
+    ls2.build(loadpath = savepath)
 
