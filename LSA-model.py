@@ -34,9 +34,10 @@ class LSATextClassifier():
                  svd_params = {},keras_params = {}):
         """LSA classifier
         Args:
-            data: tuple containing (data_X,data_y)
+            train_data: tuple containing (data_X,data_y)
                 data_X: list of untokenized text samples
                 data_y: numpy array of one-hot encoded classes
+            test_data: same as train_data, for test data.
             savename: save base path, used to save savename_svd.pickle, etc.
             run_transform: bool, if True, run and fit the tf-idf vectorizer
             train_split: split training into a train and validation set
@@ -71,6 +72,8 @@ class LSATextClassifier():
         self.min_df = tfidf_params['min_df'] if 'min_df' in tfidf_params else 2     
         self.N_vec = svd_params['N_vec'] if 'N_vec' in svd_params else 100
         self.pos_weights = keras_params['pos_weights'] if 'pos_weights' in keras_params else np.ones((self.train_y.shape[1]))
+        self.net_shape = keras_params['pos_weights'] if 'pos_weights' in keras_params else []
+        self.activation = keras_params['activation'] if 'activation' in keras_params else 'relu'
         
         ## add hyperparameter options to provide to TFidfVectorizer
         if run_transform:
@@ -93,7 +96,7 @@ class LSATextClassifier():
     def train_word_vectors(self,docs,):
         """Train the tfidf-svd vectorizer
         Args:
-            docs: list of tokenized input strings
+            docs: list of input strings
         Returns:
             None"""
         
@@ -103,7 +106,7 @@ class LSATextClassifier():
         
         self.vectorizer = TfidfVectorizer(max_df=0.8, max_features=None,
                                  min_df=self.min_df, stop_words=self.stopwords,
-                                 use_idf=True, tokenizer = dp.tokenize)
+                                 use_idf=True, tokenizer = None)
         
         self.vectorizer.fit(docs)
 
@@ -122,14 +125,14 @@ class LSATextClassifier():
     def get_word_vectors(self, docs):
         """Get the svd-tfidf vector(s) corresponding to text
         Args:
-            text: list of docs to be transformed using tfidf-svd
+            docs: list of docs to be transformed using tfidf-svd
         Returns:
-            array containing word vectors according to the trained model"""
+            array containing word vectors according to the trained transformers"""
         return self.svd.transform(self.vectorizer.transform(docs))
         
         
     def transform_word_vectors(self):
-        """Transform the train and test data"""
+        """Transform the train, val and test data and save if savename is given"""
         print('Transforming word vectors')
         
         self.train_X_vec = self.get_word_vectors(self.train_X)
@@ -146,14 +149,19 @@ class LSATextClassifier():
         lossfun = create_weighted_binary_crossentropy(self.pos_weights)
         
         self.model = Sequential()
-#        #single:
-#        self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
+        #single:
+        if self.net_shape == []:
+            self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
+        #multi:
+        else:
+            #first layer:
+            self.model.add(Dense(self.net_shape[0], input_dim=self.N_vec, activation=self.activation))
+            #other layers
+            for ns in self.net_shape[1:]:
+                self.model.add(Dense(ns, activation=self.activation))
+            #last layer:
+            self.model.add(Dense(self.train_y.shape[1], activation='sigmoid'))
 
-        #double:
-        self.model.add(Dense(100, input_dim=self.N_vec, activation='relu'))
-        self.model.add(Dense(100, activation='relu'))
-        self.model.add(Dense(100, activation='relu'))
-        self.model.add(Dense(self.train_y.shape[1], activation='sigmoid'))
         
         self.model.summary()
 
@@ -163,7 +171,7 @@ class LSATextClassifier():
 
 
     def train(self, batch_size=50, nb_epoch=100):
-        """Train the model on the training data.
+        """Train the regression model on the transformed vectors.
         Args:
             batch_size: batch size used while training
             nb_epoch: number of epochs
@@ -191,10 +199,10 @@ class LSATextClassifier():
             the model's accuracy classifying the test data.
             """
 
-        score = self.model.evaluate(self.test_X_vector, self.test_y, verbose=0)
+        score = self.model.evaluate(self.test_X_vec, self.test_y, verbose=0)
     
         print('loss:', score[0])
-        print('accuracy:', score[1])
+        print('binary accuracy:', score[1])
         return score[1]
 
     def predict(self, reviews):
