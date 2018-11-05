@@ -301,7 +301,8 @@ if __name__ == "__main__":
                                 clean_x = True, keep_latex_tags = True)
 
     
-    class_weights = 1/np.mean(train_y, axis = 0)
+#    class_weights = 0.1/np.mean(train_y, axis = 0)
+    class_weights = np.ones((train_y.shape[1]))
     
     #load stopwords inferred from correlations:
     with open('save/inferred_stop_words.boj','rb') as f:
@@ -314,7 +315,8 @@ if __name__ == "__main__":
                     'stopwords' : inferred_stop_words + stopwords.words('english')}
     svd_params = {'N_vec' : 100}
 
-    keras_params = {'pos_weights' : class_weights}    
+    keras_params = {'pos_weights' : class_weights,
+                    'net_shape' : [],}    
     savename = 'save/ls_save'
     ls = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
                            random_seed = 0,run_transform = False,tfidf_params = tfidf_params,

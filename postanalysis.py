@@ -10,7 +10,7 @@ Created on Sun Nov  4 12:44:02 2018
     
     
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 import data_preprocessing as dp
 
@@ -103,7 +103,35 @@ if __name__ == "__main__":
 
     
     #make plots:
-    pass
+    def plot_correlations(word_vec, words, n_bars, cat_name, savename = None):
+        highest = np.argsort(word_vec)[-1:-1-n_bars:-1]
+        lowest = np.argsort(word_vec)[0:n_bars]
+        
+        bars = np.concatenate((lowest,highest[::-1]))
+        tick_label = [words[i] for i in lowest] + ['','',''] + [words[i] for i in highest[::-1]]
+        corrs = [word_vec[i] for i in lowest]
+        corrs += [0.,0.,0.]+[word_vec[i] for i in highest[::-1]]
+        corrs = np.array(corrs)
+        
+        vmax = np.abs(corrs).max()
+        
+        colors = [plt.cm.coolwarm((corr/(2*vmax))+0.5) for corr in corrs]
+        
+        x = np.arange(len(corrs))
+        plt.tight_layout()
+
+        fig,ax = plt.subplots(figsize = (4,3.5))
+        ax.barh(x,corrs, tick_label = tick_label, color = colors)
+        ax.set_yticklabels(tick_label, rotation = 0)
+        fig.subplots_adjust(left=0.35)
+        fig.subplots_adjust(bottom=0.15)
+        fig.subplots_adjust(top=0.95)
+        ax.set_xlabel('Correlation')
+
+        if savename is not None:
+            fig.savefig(savename, dpi = 600)
+        
+    plot_correlations(word_vecs[4],words,10,inc_categories[4], savename = 'supercon_corr.png')
 
 
 
