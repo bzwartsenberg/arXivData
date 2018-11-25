@@ -32,7 +32,7 @@ class LSATextClassifier():
 
 
     def __init__(self, train_data, test_data, savename = None, run_transform = True,
-                 train_split = 0.66, random_seed = 0, tfidf_params = {},
+                 ylabels = None, train_split = 0.66, random_seed = 0, tfidf_params = {},
                  svd_params = {},keras_params = {}):
         """LSA classifier
         Args:
@@ -43,6 +43,7 @@ class LSATextClassifier():
             savename: save base path, used to save savename_svd.pickle, etc.
             run_transform: bool, if True, run and fit the tf-idf vectorizer
             train_split: split training into a train and validation set
+            ylabels: label names for the y categories            
             random_seed: seed to pass to loading function, used to 
                         randomize training data before splitting into train/val set
                         can be used for x-validation
@@ -52,6 +53,7 @@ class LSATextClassifier():
             """            
         ## put class initialization hyperparamters in a dict     
         self.savename = savename    
+        self.ylabels = ylabels
         
         self.random_seed = random_seed
 
@@ -319,7 +321,7 @@ if __name__ == "__main__":
                     'net_shape' : [],}    
     savename = 'save/ls_save'
     ls = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
-                           random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
+                           ylabels = inc_categories, random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
                            svd_params = svd_params,keras_params = keras_params)
     
     ls.build()
