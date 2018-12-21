@@ -85,7 +85,11 @@ if __name__ == "__main__":
         with open(savename,'rb') as f:
             cv,cvfit = pickle.load(f)
     else:
-        cv = CountVectorizer(tokenizer = None, stop_words = None)
+        params = dict(strip_accents=None, lowercase=True, preprocessor=None, tokenizer=None, 
+             stop_words=None, ngram_range=(2,2), analyzer='word', 
+             max_df=1.0, min_df=1, max_features=None, vocabulary=None)
+        
+        cv = CountVectorizer(**params)
         cvfit = cv.fit_transform(train_X)
         with open(savename,'wb') as f:
                 pickle.dump((cv,cvfit),f)  

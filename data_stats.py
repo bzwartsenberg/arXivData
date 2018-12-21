@@ -192,9 +192,10 @@ if __name__ == "__main__":
     labels = ['others'] + inc_categories
     values = [cat_occ[l] for l in labels]
     
-    fig,ax = plt.subplots(figsize = (4,4))
+    fig,ax = plt.subplots(figsize = (6,3))
     scolors = palettable.cartocolors.qualitative.Prism_7.mpl_colors
     ax.pie(values, labels = labels, colors = scolors,autopct='%1.1f%%', explode = np.linspace(0.0,0.7,len(values)))
+    plt.subplots_adjust(left=0.25, right=0.65, top=0.9, bottom=0.1)
     fig.savefig('Pie_categories.png', dpi = 300)
     plt.show()
     
@@ -293,7 +294,7 @@ if __name__ == "__main__":
         #print: words with more than N occurences (N e [1e6, 1e5, 1e4, 1e3, 1e2,1e1, etc.])
         print('\n\nWord occurences higher than x: ')
         for cut in [1e6, 1e5,1e4,1e3,1e2,1e1,1e0]:
-            times = np.sum(np.argwhere(wcounts > cut))
+            times = np.argwhere(wcounts > cut).shape[0]
             print('There are {} tokens that occur more than {} times'.format(times,cut))
         
         wcounts_dict[rn] = wcounts
@@ -312,6 +313,65 @@ if __name__ == "__main__":
     ax.legend()
     fig.savefig('token_stats_vs_methods')
     #histogram of occurence on x-axis, vs number of features on y-axis
+    
+    
+    #big-grams, first 2,2
+    params = dict(strip_accents=None, lowercase=True, preprocessor=None, tokenizer=None, 
+         stop_words=stopwords.words('english'), ngram_range=(2,2), analyzer='word', 
+         max_df=1.0, min_df=5, max_features=None, vocabulary=None)
+    
+    cv = CountVectorizer(**params)
+    cvfit = cv.fit_transform(train_X)
+    wcounts = np.sum(cvfit, axis = 0).A1        
+    words = np.array(cv.get_feature_names())[wcounts.argsort()][::-1]
+    wcounts = wcounts[wcounts.argsort()][::-1]
+    print('\n\nMost occuring 2-grams:')
+    for i in range(50):
+        print('Word \'{}\' occurs {} times'.format(words[i],wcounts[i]))
         
+    print('\n\nWord occurences higher than x for 2-gram: ')
+    for cut in [1e6, 1e5,1e4,1e3,1e2,1e1,1e0]:
+        times = np.argwhere(wcounts > cut).shape[0]
+        print('There are {} tokens that occur more than {} times'.format(times,cut))
+        
+
+
+    params = dict(strip_accents=None, lowercase=True, preprocessor=None, tokenizer=None, 
+         stop_words=stopwords.words('english'), ngram_range=(3,3), analyzer='word', 
+         max_df=1.0, min_df=5, max_features=None, vocabulary=None)
+    
+    cv = CountVectorizer(**params)
+    cvfit = cv.fit_transform(train_X)
+    wcounts = np.sum(cvfit, axis = 0).A1        
+    words = np.array(cv.get_feature_names())[wcounts.argsort()][::-1]
+    wcounts = wcounts[wcounts.argsort()][::-1]
+    print('\n\nMost occuring 3-grams:')
+    for i in range(50):
+        print('Word \'{}\' occurs {} times'.format(words[i],wcounts[i]))
+
+    print('\n\nWord occurences higher than x for 3-gram: ')
+    for cut in [1e6, 1e5,1e4,1e3,1e2,1e1,1e0]:
+        times = np.argwhere(wcounts > cut).shape[0]
+        print('There are {} tokens that occur more than {} times'.format(times,cut))
+
+
+    params = dict(strip_accents=None, lowercase=True, preprocessor=None, tokenizer=None, 
+         stop_words=stopwords.words('english'), ngram_range=(4,4), analyzer='word', 
+         max_df=1.0, min_df=5, max_features=None, vocabulary=None)
+    
+    cv = CountVectorizer(**params)
+    cvfit = cv.fit_transform(train_X)
+    wcounts = np.sum(cvfit, axis = 0).A1        
+    words = np.array(cv.get_feature_names())[wcounts.argsort()][::-1]
+    wcounts = wcounts[wcounts.argsort()][::-1]
+    print('\n\nMost occuring 4-grams:')
+    for i in range(50):
+        print('Word \'{}\' occurs {} times'.format(words[i],wcounts[i]))
+    print('\n\nWord occurences higher than x for 4-gram: ')
+    for cut in [1e6, 1e5,1e4,1e3,1e2,1e1,1e0]:
+        times = np.argwhere(wcounts > cut).shape[0]
+        print('There are {} tokens that occur more than {} times'.format(times,cut))
+        
+              
            
 #    f.close()

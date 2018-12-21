@@ -75,10 +75,11 @@ class lgbmTextClassifier():
         self.test_y = test_data[1]
 
         tfidf_std_params = {'stop_words' : None,
-                            'min_df' : 2,
+                            'min_df' : 5,
                             'max_features' : None,
                             'use_idf' : True, 
-                            'tokenizer' : None}
+                            'tokenizer' : None,
+                            'ngram_range' : (1,4)}
         
         lgbm_std_params = {'boosting_type': 'gbdt',
                             'objective': 'binary',
