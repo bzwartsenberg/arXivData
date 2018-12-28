@@ -72,12 +72,25 @@ class LSATextClassifier():
         self.test_y = test_data[1]
 
             
-        self.stopwords = tfidf_params['stopwords'] if 'stopwords' in tfidf_params else None
-        self.min_df = tfidf_params['min_df'] if 'min_df' in tfidf_params else 2     
-        self.N_vec = svd_params['N_vec'] if 'N_vec' in svd_params else 100
-        self.pos_weights = keras_params['pos_weights'] if 'pos_weights' in keras_params else np.ones((self.train_y.shape[1]))
-        self.net_shape = keras_params['net_shape'] if 'net_shape' in keras_params else []
-        self.activation = keras_params['activation'] if 'activation' in keras_params else 'relu'
+        
+        tfidf_std_params = {'stop_words' : None,
+                            'min_df' : 5,
+                            'max_features' : None,
+                            'max_df' : 0.8,
+                            'use_idf' : True, 
+                            'tokenizer' : None,
+                            'ngram_range' : (1,1)}
+        
+        svd_std_params = {'N_vec' : 100}  
+        
+        keras_std_params = {'net_shape' : [],
+                            'activation' : 'relu',
+                            'pos_weights' : np.ones((self.train_y.shape[1]))}
+        
+        self.tfidf_params = dict(tfidf_std_params, **tfidf_params)
+        self.svd_params = dict(svd_std_params, **svd_params)
+        self.keras_params = dict(keras_std_params, **keras_params)
+
         
         ## add hyperparameter options to provide to TFidfVectorizer
         if run_transform:
@@ -92,7 +105,7 @@ class LSATextClassifier():
                 with open(self.savename + '_svd.obj','rb') as f:
                     self.svd = pickle.load(f)
                 with open(self.savename + '_tfidf.obj','rb') as f:
-                    self.vectorizer = pickle.load(f)
+                    self.tfidf = pickle.load(f)
                 with open(self.savename + '_X_vec.obj','rb') as f:
                     self.train_X_vec,self.val_X_vec,self.test_X_vec = pickle.load(f)        
      
@@ -108,22 +121,20 @@ class LSATextClassifier():
         #may need to remove interpunction too?
         print('Building tfidf vectorizer')
         
-        self.vectorizer = TfidfVectorizer(max_df=0.8, max_features=None,
-                                 min_df=self.min_df, stop_words=self.stopwords,
-                                 use_idf=True, tokenizer = None)
+        self.tfidf = TfidfVectorizer(**self.tfidf_params)
         
-        self.vectorizer.fit(docs)
+        self.tfidf.fit(docs)
 
         print('Building svd transformer')
         
-        self.svd = TruncatedSVD(self.N_vec)
-        self.svd.fit(self.vectorizer.transform(docs))
+        self.svd = TruncatedSVD(self.svd_params['N_vec'])
+        self.svd.fit(self.tfidf.transform(docs))
         
         if self.savename is not None:
             with open(self.savename + '_svd.obj','wb') as f:
                 pickle.dump(self.svd,f)
             with open(self.savename + '_tfidf.obj','wb') as f:
-                pickle.dump(self.vectorizer,f)        
+                pickle.dump(self.tfidf,f)        
         
         
     def get_word_vectors(self, docs):
@@ -132,7 +143,7 @@ class LSATextClassifier():
             docs: list of docs to be transformed using tfidf-svd
         Returns:
             array containing word vectors according to the trained transformers"""
-        return self.svd.transform(self.vectorizer.transform(docs))
+        return self.svd.transform(self.tfidf.transform(docs))
         
         
     def transform_word_vectors(self):
@@ -157,19 +168,20 @@ class LSATextClassifier():
             self.model.summary()
         else:
             print('Generating new model.')
-            lossfun = create_weighted_binary_crossentropy(self.pos_weights)
+            lossfun = create_weighted_binary_crossentropy(self.keras_params['pos_weights'])
             
             self.model = Sequential()
             #single:
-            if self.net_shape == []:
-                self.model.add(Dense(self.train_y.shape[1], input_dim=self.N_vec, activation='sigmoid'))
+            net_shape = self.keras_params['net_shape']
+            if net_shape == []:
+                self.model.add(Dense(self.train_y.shape[1], input_dim=self.svd_params['N_vec'], activation='sigmoid'))
             #multi:
             else:
                 #first layer:
-                self.model.add(Dense(self.net_shape[0], input_dim=self.N_vec, activation=self.activation))
+                self.model.add(Dense(net_shape[0], input_dim=self.svd_params['N_vec'], activation=self.keras_params['activation']))
                 #other layers
-                for ns in self.net_shape[1:]:
-                    self.model.add(Dense(ns, activation=self.activation))
+                for ns in net_shape[1:]:
+                    self.model.add(Dense(ns, activation=self.keras_params['activation']))
                 #last layer:
                 self.model.add(Dense(self.train_y.shape[1], activation='sigmoid'))
     
@@ -177,7 +189,7 @@ class LSATextClassifier():
             self.model.summary()
     
             #multi onehot: binary cross entropy and binary accuracy
-            self.model.compile(optimizer='adam', loss=lossfun, metrics=['binary_accuracy'])
+            self.model.compile(optimizer='adam', loss=lossfun, metrics=[sensitivity, precision])
         
 
 
@@ -236,8 +248,32 @@ class LSATextClassifier():
 
         
         
-        
-        
+
+def sensitivity(y_true, y_pred)        :
+    """Function to calculate the sensitivity metric in a Keras run
+    
+    Args:
+        y_true: tensor with true labels
+        y_pred: tensor with predictions"""
+    
+    true_pos = K.mean(K.tf.logical_and(K.equal(K.round(y_pred),1),K.equal(y_true, 1)))
+    false_neg = K.mean(K.tf.logical_and(K.equal(K.round(y_pred),0),K.equal(y_true, 1)))
+
+    return true_pos/(true_pos + false_neg)    
+
+
+def precision(y_true, y_pred)        :
+    """Function to calculate the precision metric in a Keras run    
+    
+    Args:
+        y_true: tensor with true labels
+        y_pred: tensor with predictions"""
+    true_pos = K.mean(K.tf.logical_and(K.equal(K.round(y_pred),1),K.equal(y_true, 1)))
+    false_pos = K.mean(K.tf.logical_and(K.equal(K.round(y_pred),1),K.equal(y_true, 0)))
+
+    return true_pos/(true_pos + false_pos)    
+    
+    
         
 def create_weighted_binary_crossentropy(pos_weights):
     """Generate a loss weighted binary crossentropy lossfunction.
@@ -290,21 +326,19 @@ if __name__ == "__main__":
                          'cond-mat.soft',
                          'quant-ph',
                          'cond-mat.dis-nn',
-                         'cond-mat',
                          'cond-mat.quant-gas',
-                         'cond-mat.other',
                          'hep-th']
 #    
-    train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories, ignore_others = False, 
+    train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories, ignore_others = True, 
                                 shuffle_seed = 0, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True)
-    test_X,test_y = dp.generate_Xy_data_categories(testdata, inc_categories, ignore_others = False, 
+    test_X,test_y = dp.generate_Xy_data_categories(testdata, inc_categories, ignore_others = True, 
                                 shuffle_seed = 0, ydatatype = 'onehot',
                                 clean_x = True, keep_latex_tags = True)
 
     
-#    class_weights = 0.1/np.mean(train_y, axis = 0)
-    class_weights = np.ones((train_y.shape[1]))
+    class_weights = 0.1/np.mean(train_y, axis = 0)
+#    class_weights = np.ones((train_y.shape[1]))
     
     #load stopwords inferred from correlations:
     with open('save/inferred_stop_words.boj','rb') as f:
@@ -314,14 +348,14 @@ if __name__ == "__main__":
     #note: from the corrlations, it seems that "that" and "and" actually hold some 
     # value, the model might train better without the stopwords.words('english') added.
     tfidf_params = {'min_df' : 2,
-                    'stopwords' : inferred_stop_words + stopwords.words('english')}
+                    'stop_words' : inferred_stop_words + stopwords.words('english')}
     svd_params = {'N_vec' : 100}
 
     keras_params = {'pos_weights' : class_weights,
                     'net_shape' : [],}    
-    savename = 'save/ls_save'
+    savename = 'save/ls_save_recommender'
     ls = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
-                           ylabels = inc_categories, random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
+                           ylabels = inc_categories, random_seed = 0,run_transform = True,tfidf_params = tfidf_params,
                            svd_params = svd_params,keras_params = keras_params)
     
     ls.build()
@@ -329,4 +363,43 @@ if __name__ == "__main__":
     
     savepath = 'save/keras_model.h5'
     ls.model.save(savepath)
+    
+    
+    ## post analysis on val set:
+    
+    y_true = ls.val_y
+    y_pred = np.round(ls.predict(ls.val_X))
+    
+    true_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 1.)), axis = 0)
+    true_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 0.)), axis = 0)
+    false_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 1.)), axis = 0)
+    false_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 0.)), axis = 0)
+    
+    accs = true_pos + true_neg
+    sens = true_pos / (true_pos + false_neg)
+    prec = true_pos / (true_pos + false_pos)
+    
+    for i,cat in enumerate(inc_categories):
+        print('\n\nFor category {}'.format(cat))
+        print('True positive rate is  {:.3f}'.format(true_pos[i]))
+        print('True negative rate is  {:.3f}'.format(true_neg[i]))
+        print('False positive rate is {:.3f}'.format(false_pos[i]))
+        print('False negative rate is {:.3f}'.format(false_neg[i]))
+
+        print('Accuracy is    {:.3f}'.format(accs[i]))
+        print('Sensitivity is {:.3f}'.format(sens[i]))
+        print('Precision is   {:.3f}'.format(prec[i]))
+
+
+    
+    
+    
+    print('\n\nCategory              sens   prec   acc')
+    for i,cat in enumerate(inc_categories):
+        print('{:<20}  {:.3f}  {:.3f}  {:.3f}'.format(cat, sens[i], prec[i], accs[i]))
+    
+    print('\n\nAverage accuracy: {:.3f}'.format(np.mean(accs)))
+    print('Average precission: {:.3f}'.format(np.mean(prec)))
+    print('Average sensitivity: {:.3f}'.format(np.mean(sens)))
+    
     
