@@ -79,7 +79,7 @@ class lgbmTextClassifier():
                             'max_features' : None,
                             'use_idf' : True, 
                             'tokenizer' : None,
-                            'ngram_range' : (1,4)}
+                            'ngram_range' : (1,2)}
         
         lgbm_std_params = {'boosting_type': 'gbdt',
                             'objective': 'binary',
@@ -180,6 +180,22 @@ class lgbmTextClassifier():
             
         with open(self.savename + '_models.obj','wb') as f:
             pickle.dump((self.ylabels,self.gbms),f)     
+            
+            
+    def predict(self, docs):
+        """Predict the labels of docs
+        Args:
+            docs: list of documents
+            """
+            
+        tf_idf_vecs = self.tfidf.transform(docs)
+        
+        y_pred = np.zeros((tf_idf_vecs.shape[0], len(self.gbms)))
+        
+        for i,gbm in enumerate(self.gbms):
+            y_pred[:,i] = gbm.predict(tf_idf_vecs)
+            
+        return y_pred
 
 
 
@@ -192,21 +208,19 @@ if __name__ == "__main__":
     testpath = '/users/berend/Documents/Coding/ML-projects/ArxivData/test_data/test_data.json'
     traindata,testdata = dp.loadfile(trainpath),dp.loadfile(testpath)
         
+    inc_categories =    ['cond-mat.mes-hall',
+                         'cond-mat.mtrl-sci',
+                         'cond-mat.stat-mech',
+                         'cond-mat.str-el',
+                         'cond-mat.supr-con',
+                         'cond-mat.soft',
+                         'quant-ph',
+                         'cond-mat.dis-nn',
+                         'cond-mat.quant-gas',
+                         'hep-th']
 #    inc_categories =  ['cond-mat.mes-hall',
 #                         'cond-mat.mtrl-sci',
-#                         'cond-mat.stat-mech',
-#                         'cond-mat.str-el',
-#                         'cond-mat.supr-con',
-#                         'cond-mat.soft',
-#                         'quant-ph',
-#                         'cond-mat.dis-nn',
-#                         'cond-mat',
-#                         'cond-mat.quant-gas',
-#                         'cond-mat.other',
-#                         'hep-th']  
-    inc_categories =  ['cond-mat.mes-hall',
-                         'cond-mat.mtrl-sci',
-                         'cond-mat.stat-mech',]
+#                         'cond-mat.stat-mech',]
  
     
     train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories, ignore_others = True, 
@@ -225,10 +239,9 @@ if __name__ == "__main__":
             
 
     tfidf_params = {'stop_words' : None,
-                        'min_df' : 2,
-                        'max_features' : None,
-                        'use_idf' : True, 
-                        'tokenizer' : None}
+                        'min_df' : 5,
+                        'ngram_range' : (1,1)}
+    
     
     lgbm_params = {'boosting_type': 'gbdt',
                         'objective': 'binary',
@@ -245,10 +258,47 @@ if __name__ == "__main__":
     savename = 'save/lm_save'
     lm = lgbmTextClassifier((train_X,train_y), (test_X,test_y),ylabels = inc_categories, 
                            savename = savename, train_split = 0.7, 
-                           random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
+                           random_seed = 0,run_transform = True,tfidf_params = tfidf_params,
                            lgbm_params = lgbm_params)
     
     lm.train_models()
     
     
     
+    ## post analysis on val set:
+    
+    y_true = lm.val_y
+    y_pred = np.round(lm.predict(lm.val_X))
+    
+    true_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 1.)), axis = 0)
+    true_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 0.)), axis = 0)
+    false_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 1.)), axis = 0)
+    false_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 0.)), axis = 0)
+    
+    accs = true_pos + true_neg
+    sens = true_pos / (true_pos + false_neg)
+    prec = true_pos / (true_pos + false_pos)
+    
+    for i,cat in enumerate(inc_categories):
+        print('\n\nFor category {}'.format(cat))
+        print('True positive rate is  {:.3f}'.format(true_pos[i]))
+        print('True negative rate is  {:.3f}'.format(true_neg[i]))
+        print('False positive rate is {:.3f}'.format(false_pos[i]))
+        print('False negative rate is {:.3f}'.format(false_neg[i]))
+
+        print('Accuracy is    {:.3f}'.format(accs[i]))
+        print('Sensitivity is {:.3f}'.format(sens[i]))
+        print('Precision is   {:.3f}'.format(prec[i]))
+
+
+    
+    
+    
+    print('\n\nCategory              sens   prec   acc')
+    for i,cat in enumerate(inc_categories):
+        print('{:<20}  {:.3f}  {:.3f}  {:.3f}'.format(cat, sens[i], prec[i], accs[i]))
+    
+    print('\n\nAverage accuracy: {:.3f}'.format(np.mean(accs)))
+    print('Average precission: {:.3f}'.format(np.mean(prec)))
+    print('Average sensitivity: {:.3f}'.format(np.mean(sens)))
+
