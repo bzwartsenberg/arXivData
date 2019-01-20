@@ -249,7 +249,7 @@ class LSATextClassifier():
         
         
 
-def sensitivity(y_true, y_pred)        :
+def sensitivity(y_true, y_pred):
     """Function to calculate the sensitivity metric in a Keras run
     
     Args:
@@ -262,7 +262,7 @@ def sensitivity(y_true, y_pred)        :
     return true_pos/(true_pos + false_neg)    
 
 
-def precision(y_true, y_pred)        :
+def precision(y_true, y_pred):
     """Function to calculate the precision metric in a Keras run    
     
     Args:
@@ -353,9 +353,9 @@ if __name__ == "__main__":
 
     keras_params = {'pos_weights' : class_weights,
                     'net_shape' : [],}    
-    savename = 'save/ls_save_recommender'
+    savename = 'save/ls_save'
     ls = LSATextClassifier((train_X,train_y), (test_X,test_y),savename = savename, train_split = 0.7, 
-                           ylabels = inc_categories, random_seed = 0,run_transform = True,tfidf_params = tfidf_params,
+                           ylabels = inc_categories, random_seed = 0,run_transform = False,tfidf_params = tfidf_params,
                            svd_params = svd_params,keras_params = keras_params)
     
     ls.build()
