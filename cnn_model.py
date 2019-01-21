@@ -6,12 +6,9 @@ Created on Sat Jan 19 13:37:25 2019
 @author: berend
 """
 
-# import tensorflow as tf 	# (optional) feel free to build your models using keras
-
 import data_preprocessing as dp
 
 
-from nltk.corpus import stopwords
 from nltk import word_tokenize
 
 import gensim
@@ -19,16 +16,12 @@ import gensim
 import pickle
 
 from keras.models import Sequential
-from keras.layers import Dense, Embedding, LSTM,Dropout, Activation, BatchNormalization,Flatten,GlobalMaxPooling1D, Conv1D
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.layers import Dense, Embedding, Dropout, Activation, Flatten,GlobalMaxPooling1D, Conv1D
 from keras.optimizers import Adam
-from keras.regularizers import l2,l1,l1_l2
 from keras import backend as K
-from keras.callbacks import Callback
 
 import numpy as np
 
-import matplotlib.pyplot as plt
 
 from lsamodel import sensitivity, precision, create_weighted_binary_crossentropy
 
@@ -298,41 +291,41 @@ if __name__ == "__main__":
     
     
     ### load data:
-#    trainpath = 'train_data/train_data.json'
-#    testpath = 'test_data/test_data.json'
-#    traindata,testdata = dp.loadfile(trainpath),dp.loadfile(testpath)
-#        
-#    inc_categories =    ['cond-mat.mes-hall',
-#                         'cond-mat.mtrl-sci',
-#                         'cond-mat.stat-mech',
-#                         'cond-mat.str-el',
-#                         'cond-mat.supr-con',
-#                         'cond-mat.soft',
-#                         'quant-ph',
-#                         'cond-mat.dis-nn',
-#                         'cond-mat.quant-gas',
-#                         'hep-th']
-#    
-#    train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories, ignore_others = True, 
-#                                shuffle_seed = 0, ydatatype = 'onehot',
-#                                clean_x = True, keep_latex_tags = True)
-#    test_X,test_y = dp.generate_Xy_data_categories(testdata, inc_categories, ignore_others = True, 
-#                                shuffle_seed = 0, ydatatype = 'onehot',
-#                                clean_x = True, keep_latex_tags = True)
-#    
-#    
-#    print('Loaded data')
-##    class_weights = 0.1/np.mean(train_y, axis = 0)
-#    class_weights = np.ones((train_y.shape[1]))
-#    
-#    
-#    ###truncated google news embedding:
-#    from nltk.data import find
-#    word2vec_sample = str(find('models/word2vec_sample/pruned.word2vec.txt'))
-#    embedding = gensim.models.KeyedVectors.load_word2vec_format(word2vec_sample, binary=False)    
-#    
-#    print('Loaded embedding')
-#
+    trainpath = 'train_data/train_data.json'
+    testpath = 'test_data/test_data.json'
+    traindata,testdata = dp.loadfile(trainpath),dp.loadfile(testpath)
+        
+    inc_categories =    ['cond-mat.mes-hall',
+                         'cond-mat.mtrl-sci',
+                         'cond-mat.stat-mech',
+                         'cond-mat.str-el',
+                         'cond-mat.supr-con',
+                         'cond-mat.soft',
+                         'quant-ph',
+                         'cond-mat.dis-nn',
+                         'cond-mat.quant-gas',
+                         'hep-th']
+    
+    train_X,train_y = dp.generate_Xy_data_categories(traindata, inc_categories, ignore_others = True, 
+                                shuffle_seed = 0, ydatatype = 'onehot',
+                                clean_x = True, keep_latex_tags = True)
+    test_X,test_y = dp.generate_Xy_data_categories(testdata, inc_categories, ignore_others = True, 
+                                shuffle_seed = 0, ydatatype = 'onehot',
+                                clean_x = True, keep_latex_tags = True)
+    
+    
+    print('Loaded data')
+#    class_weights = 0.1/np.mean(train_y, axis = 0)
+    class_weights = np.ones((train_y.shape[1]))
+    
+    
+    ###truncated google news embedding:
+    from nltk.data import find
+    word2vec_sample = str(find('models/word2vec_sample/pruned.word2vec.txt'))
+    embedding = gensim.models.KeyedVectors.load_word2vec_format(word2vec_sample, binary=False)    
+    
+    print('Loaded embedding')
+
 
 
     embed_params = {'unk_token' : True,
@@ -356,7 +349,7 @@ if __name__ == "__main__":
 
     
     cn = CNNTextClassifier((train_X,train_y), (test_X,test_y), embedding, savename = savename, 
-                 ylabels = inc_categories, train_split = 0.7, random_seed = 0, load_vecs = True,
+                 ylabels = inc_categories, train_split = 0.7, random_seed = 0, load_vecs = False,
                  embed_params = embed_params, cnn_params = cnn_params)
 
     cn.build()
