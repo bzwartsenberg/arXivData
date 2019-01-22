@@ -225,7 +225,7 @@ class CNNTextClassifier():
             
             
         y_true = self.val_y
-        y_pred = self.model.predict(cn.val_X_ints, return_probabilities = False)
+        y_pred = self.predict(cn.val_X_ints, return_probabilities = False)
         
         true_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 1.)), axis = 0)
         true_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 0.)), axis = 0)
@@ -317,7 +317,7 @@ if __name__ == "__main__":
 #    word2vec_sample = str(find('models/word2vec_sample/pruned.word2vec.txt'))
 #    embedding = gensim.models.KeyedVectors.load_word2vec_format(word2vec_sample, binary=False)    
 #    
-    embedding = load_embedding_matrix('save/embedding0')    
+#    embedding = load_embedding_matrix('save/embedding0')    
     
     print('Loaded embedding')
 
