@@ -15,7 +15,8 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 from sklearn.preprocessing import OneHotEncoder
-
+import time
+import string
 
 datapath = 'data/'
 
@@ -96,33 +97,59 @@ def cleandata(data_X, keep_tags = True):
 
 
 
-def tokenize(text, filterset = None):
+
+
+def tokenize_filter(doc, filterset = None):
     """Tokenize and filter a text sample.
     
     Args:
-        text string to be tokenized and filtered.
+        doc: string to be tokenized and filtered.
         filterset: set of words that are filtered out
 
     returns:
-        tokens: a list of the tokens/words in text.
+        tokens: a list of the tokens in doc.
     """
-    ## NOTE: maybe update this function with a different nltk tokenizer that automatically removes interpunction and stopwords
     
-    tokens = word_tokenize(text)
-    
-    if filterset == 'std':
-        #nltk filter stopwords
-        filterset = set(stopwords.words('english'))
-        #nltk filter punctuation...
-        filterset = filterset.union(set(['!', '"', '#', '$', '%', '&', "'", '(', ')', '*', 
-        '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', 
-        '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~', '\'s']))
-    
+    if filterset is None:
+        ##std filterset:
+        filterset = set(stopwords)
+        filterset = filterset.union(list(string.punctuation))
+        filterset.add('``')
+        filterset.add("''")
         
-    if filterset is not None:
-        tokens = [token for token in tokens if not token in filterset]
     
-    return tokens
+    return [token for token in word_tokenize(doc) if not token in filterset]
+
+
+
+def tokenize_filter_many(docs, filterset, reporting = None):
+    """Tokenize and filter a list of docs.
+    
+    Args:
+        docs: list of docs to be tokenized and filtered.
+        filterset: set of words that are filtered out
+        reporting: if nonzero, give updates every <reporting> docs about time left
+
+    returns:
+        a list of lists of tokens.
+    """        
+    new_docs = []
+    
+    if reporting is None:
+        for doc in docs:
+            new_docs.append(tokenize_filter(doc, filterset))
+    else:
+        t0 = time.time()
+        for i,doc in enumerate(docs):
+            new_docs.append(tokenize_filter(doc, filterset))
+            if (i+1) % reporting == 0:
+                t1 = time.time()
+                tpd = (t1-t0)/reporting
+                t0 = t1
+                print('Time per doc {}, time remaining {}'.format(tpd, (len(docs)-i)*tpd))
+    
+    return new_docs
+
     
     
     

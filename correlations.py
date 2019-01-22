@@ -198,7 +198,7 @@ if __name__ == "__main__":
         print('Word \'{}\' has an occurence of {:.4f} mean absolute correlation of {:.4f}'.format(words[i],np.mean(np.abs(correlations[:,i])),wcounts[i]/tot_words))
         inferred_stop_words.append(words[i])
     #save these inferred stopwords:
-    with open('save/inferred_stop_words.boj','wb') as f:
+    with open('save/inferred_stop_words.obj','wb') as f:
         pickle.dump(inferred_stop_words,f)
         
 

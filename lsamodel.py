@@ -341,7 +341,7 @@ if __name__ == "__main__":
 #    class_weights = np.ones((train_y.shape[1]))
     
     #load stopwords inferred from correlations:
-    with open('save/inferred_stop_words.boj','rb') as f:
+    with open('save/inferred_stop_words.obj','rb') as f:
         inferred_stop_words = pickle.load(f)
             
     
