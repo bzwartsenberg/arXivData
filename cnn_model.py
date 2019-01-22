@@ -17,13 +17,18 @@ import pickle
 
 from keras.models import Sequential
 from keras.layers import Dense, Embedding, Dropout, Activation, Flatten,GlobalMaxPooling1D, Conv1D
+from keras.regularizers import l2
 from keras.optimizers import Adam
 from keras import backend as K
 
 import numpy as np
 
+import os
 
 from lsamodel import sensitivity, precision, create_weighted_binary_crossentropy
+
+from make_embedding import load_embedding_matrix
+
 
 class CNNTextClassifier():
     """
@@ -173,19 +178,14 @@ class CNNTextClassifier():
                 embedding_mat[-1] = unk_word
     
             self.model = Sequential()
-            #keras automatically pads the inputs, I could shorten the inputs?
+
             self.model.add(Embedding(embed_size,
                             self.embed_params['word_vec_len'],
     #                        weights=[embedding_mat.T],
     #                        embeddings_regularizer=l2(0.002),
                             input_length=self.embed_params['trunc_len'],
                             trainable=self.cnn_params['wvec_trainable']))
-            #WITHOUT batch normalization
-            #last dimension is word dimension so that should be full length filter:
-            #for filter in filters:      
-            #To add:
-                #multiple filters
-                #l2 regularization
+
                 
             #change to multi-filter
             filt = self.cnn_params['cnn_filters'][0]
@@ -208,7 +208,7 @@ class CNNTextClassifier():
 
 
 
-    def train(self, batch_size=50, num_epochs=5, validation = 1000):
+    def train(self, batch_size = 50, num_epochs = 5):
         """Train the model on the training data."""
 
         
@@ -260,13 +260,6 @@ class CNNTextClassifier():
         print('Average sensitivity: {:.3f}'.format(np.mean(sens)))
         
             
-
-        score = self.model.evaluate(self.test_X_vec, self.test_y, verbose=0)
-    
-        print('loss:', score[0])
-        print('accuracy:', score[1])
-        return score[1]            
-
 
 
     def predict(self, X_ints, return_probabilities = False):
@@ -320,9 +313,11 @@ if __name__ == "__main__":
     
     
     ###truncated google news embedding:
-    from nltk.data import find
-    word2vec_sample = str(find('models/word2vec_sample/pruned.word2vec.txt'))
-    embedding = gensim.models.KeyedVectors.load_word2vec_format(word2vec_sample, binary=False)    
+#    from nltk.data import find
+#    word2vec_sample = str(find('models/word2vec_sample/pruned.word2vec.txt'))
+#    embedding = gensim.models.KeyedVectors.load_word2vec_format(word2vec_sample, binary=False)    
+#    
+    embedding = load_embedding_matrix('save/embedding0')    
     
     print('Loaded embedding')
 
@@ -346,51 +341,26 @@ if __name__ == "__main__":
     
 
     savename = 'save/cn_save'
+    
+    histories = []
 
+    #test embeddings:
+    for embed_path in ['save/' + d for d in os.listdir('save/') if 'embedding' in d]:
+        print('Training on embedding: ' + embed_path)
+        embedding = load_embedding_matrix(embed_path)    
+        
+        cn = CNNTextClassifier((train_X,train_y), (test_X,test_y), embedding, savename = savename, 
+                     ylabels = inc_categories, train_split = 0.7, random_seed = 0, load_vecs = False,
+                     embed_params = embed_params, cnn_params = cnn_params)
     
-    cn = CNNTextClassifier((train_X,train_y), (test_X,test_y), embedding, savename = savename, 
-                 ylabels = inc_categories, train_split = 0.7, random_seed = 0, load_vecs = False,
-                 embed_params = embed_params, cnn_params = cnn_params)
-
-    cn.build()
-    
-    cn.train(batch_size=50, num_epochs=5, validation = 1000)
-    savepath = 'save/cnn_model.h5'
-    cn.model.save(savepath)
-    
-    
-    y_true = cn.val_y
-    y_pred = np.round(cn.model.predict(cn.val_X_ints))
-    
-    true_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 1.)), axis = 0)
-    true_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 0.)), axis = 0)
-    false_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 1.)), axis = 0)
-    false_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 0.)), axis = 0)
-    
-    accs = true_pos + true_neg
-    sens = true_pos / (true_pos + false_neg)
-    prec = true_pos / (true_pos + false_pos)
-    
-    for i,cat in enumerate(inc_categories):
-        print('\n\nFor category {}'.format(cat))
-        print('True positive rate is  {:.3f}'.format(true_pos[i]))
-        print('True negative rate is  {:.3f}'.format(true_neg[i]))
-        print('False positive rate is {:.3f}'.format(false_pos[i]))
-        print('False negative rate is {:.3f}'.format(false_neg[i]))
-
-        print('Accuracy is    {:.3f}'.format(accs[i]))
-        print('Sensitivity is {:.3f}'.format(sens[i]))
-        print('Precision is   {:.3f}'.format(prec[i]))
-
-
-    
-    
-    
-    print('\n\nCategory              sens   prec   acc')
-    for i,cat in enumerate(inc_categories):
-        print('{:<20}  {:.3f}  {:.3f}  {:.3f}'.format(cat, sens[i], prec[i], accs[i]))
-    
-    print('\n\nAverage accuracy: {:.3f}'.format(np.mean(accs)))
-    print('Average precission: {:.3f}'.format(np.mean(prec)))
-    print('Average sensitivity: {:.3f}'.format(np.mean(sens)))
-    
+        cn.build()
+        
+        history = cn.train(batch_size=50, num_epochs=5)
+        histories.append(history)
+        savepath = 'save/cnn_model.h5'
+        cn.model.save(savepath)
+        
+        cn.evaluate()
+        
+    with open('save/histories.obj','wb') as f:
+        pickle.dump(histories,f)
