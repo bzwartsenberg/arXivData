@@ -15,8 +15,8 @@ import gensim
 
 import pickle
 
-from keras.models import Sequential
-from keras.layers import Dense, Embedding, Dropout, Activation, Flatten,GlobalMaxPooling1D, Conv1D
+from keras.models import Sequential, Model
+from keras.layers import Dense, Embedding, Dropout, Activation, Flatten,GlobalMaxPooling1D, Conv1D, Input, concatenate
 from keras.regularizers import l2
 from keras.optimizers import Adam
 from keras import backend as K
@@ -177,28 +177,38 @@ class CNNTextClassifier():
             if self.embed_params['unk_token']:
                 embedding_mat[-1] = unk_word
     
-            self.model = Sequential()
-
-            self.model.add(Embedding(embed_size,
+#            self.model = Sequential()
+                
+            inp = Input(shape = (self.embed_params['trunc_len'],))
+            
+            emb = Embedding(embed_size,
                             self.embed_params['word_vec_len'],
     #                        weights=[embedding_mat.T],
     #                        embeddings_regularizer=l2(0.002),
-                            input_length=self.embed_params['trunc_len'],
-                            trainable=self.cnn_params['wvec_trainable']))
+#                            input_length=,
+                            trainable=self.cnn_params['wvec_trainable'])(inp)
 
+
+            convs = []
+            for i,filt in enumerate(self.cnn_params['cnn_filters']):
+                cnn = Conv1D(filt[1], filt[0],kernel_regularizer=l2(0.000), activation = 'relu')(emb)
+                cnn = GlobalMaxPooling1D()(cnn)
+                cnn = Dropout(0.5)(cnn)
+                convs.append(cnn)
                 
-            #change to multi-filter
-            filt = self.cnn_params['cnn_filters'][0]
-            self.model.add(Conv1D(filt[1], filt[0],kernel_regularizer=l2(0.000)))
-    
-            self.model.add(Activation('relu')) #1
-            self.model.add(GlobalMaxPooling1D()) #2
-            self.model.add(Dropout(0.5)) #2
-            self.model.add(Dense(512,kernel_regularizer=l2(0.000))) #this layer is not used in 
-            self.model.add(Activation('relu'))
-            self.model.add(Dropout(0.5)) #2
-            self.model.add(Dense(self.train_y.shape[1]))
-            self.model.add(Activation('sigmoid'))
+                
+            if len(convs) > 1:
+                x = concatenate(convs)
+            else:
+                x = convs[0]
+                
+            x = Dense(512,kernel_regularizer=l2(0.000), activation = 'relu')(x)
+            x = Dropout(0.5)(x)
+            y = Dense(self.train_y.shape[1],activation = 'sigmoid')(x)
+            
+            self.model = Model(inp,y)
+                                
+
             self.model.summary()
     
             #multi onehot: binary cross entropy and binary accuracy
@@ -317,7 +327,7 @@ if __name__ == "__main__":
 #    word2vec_sample = str(find('models/word2vec_sample/pruned.word2vec.txt'))
 #    embedding = gensim.models.KeyedVectors.load_word2vec_format(word2vec_sample, binary=False)    
 #    
-#    embedding = load_embedding_matrix('save/embedding0')    
+    embedding = load_embedding_matrix('save/embedding_base')    
     
     print('Loaded embedding')
 
@@ -338,29 +348,41 @@ if __name__ == "__main__":
     seed = 0
     trunc_len = 200
     unk_token = True
-    
-
     savename = 'save/cn_save'
     
-    histories = []
+        
+    cn = CNNTextClassifier((train_X,train_y), (test_X,test_y), embedding, savename = savename, 
+                 ylabels = inc_categories, train_split = 0.7, random_seed = 0, load_vecs = True,
+                 embed_params = embed_params, cnn_params = cnn_params)
+
+    cn.build()
+    
+    history = cn.train(batch_size=50, num_epochs=5)
+    savepath = 'save/cnn_model.h5'
+    cn.model.save(savepath)
+    
+    cn.evaluate()    
+
+    
 
     #test embeddings:
-    for embed_path in ['save/' + d for d in os.listdir('save/') if 'embedding' in d]:
-        print('Training on embedding: ' + embed_path)
-        embedding = load_embedding_matrix(embed_path)    
-        
-        cn = CNNTextClassifier((train_X,train_y), (test_X,test_y), embedding, savename = savename, 
-                     ylabels = inc_categories, train_split = 0.7, random_seed = 0, load_vecs = False,
-                     embed_params = embed_params, cnn_params = cnn_params)
-    
-        cn.build()
-        
-        history = cn.train(batch_size=50, num_epochs=5)
-        histories.append(history)
-        savepath = 'save/cnn_model.h5'
-        cn.model.save(savepath)
-        
-        cn.evaluate()
-        
-    with open('save/histories.obj','wb') as f:
-        pickle.dump(histories,f)
+#    for embed_path in ['save/' + d for d in os.listdir('save/') if 'embedding' in d]:
+#        print('Training on embedding: ' + embed_path)
+#        
+#        embedding = load_embedding_matrix(embed_path)    
+#        
+#        cn = CNNTextClassifier((train_X,train_y), (test_X,test_y), embedding, savename = savename, 
+#                     ylabels = inc_categories, train_split = 0.7, random_seed = 0, load_vecs = False,
+#                     embed_params = embed_params, cnn_params = cnn_params)
+#    
+#        cn.build()
+#        
+#        history = cn.train(batch_size=50, num_epochs=5)
+#        histories.append(history)
+#        savepath = 'save/cnn_model.h5'
+#        cn.model.save(savepath)
+#        
+#        cn.evaluate()
+#        
+#    with open('save/histories.obj','wb') as f:
+#        pickle.dump(histories,f)
