@@ -177,16 +177,17 @@ class CNNTextClassifier():
             if self.embed_params['unk_token']:
                 embedding_mat[-1] = unk_word
     
-#            self.model = Sequential()
                 
             inp = Input(shape = (self.embed_params['trunc_len'],))
             
-            emb = Embedding(embed_size,
+            self.model_emb = Embedding(embed_size,
                             self.embed_params['word_vec_len'],
-    #                        weights=[embedding_mat.T],
+                            weights=[embedding_mat],
     #                        embeddings_regularizer=l2(0.002),
 #                            input_length=,
-                            trainable=self.cnn_params['wvec_trainable'])(inp)
+                            trainable=self.cnn_params['wvec_trainable'])
+            
+            emb = self.model_emb(inp)
 
 
             convs = []
@@ -208,6 +209,10 @@ class CNNTextClassifier():
             
             self.model = Model(inp,y)
                                 
+            ## save some stuff:
+            self.lossfun = lossfun
+            self.model_input = inp
+            self.model_output = y
 
             self.model.summary()
     
@@ -215,6 +220,31 @@ class CNNTextClassifier():
             self.model.compile(optimizer=self.cnn_params['optimizer'], loss=lossfun, metrics=[sensitivity, precision])
         
         
+    def rebuild_model(self):
+        """Update some things and then rebuild the model"""
+        print('Rebuilding model:')        
+        
+        print('trainable', self.model_emb.trainable)
+
+        self.model_emb.trainable = True
+
+        
+#        self.model = Model(self.model_input, self.model_output)
+        
+        self.model.compile(optimizer=self.cnn_params['optimizer2'], loss=self.lossfun, metrics=[sensitivity, precision])
+
+
+        self.model.summary()
+
+        print('trainable', self.model_emb.trainable)
+        trainable_count = int(
+            np.sum([K.count_params(p) for p in set(self.model.trainable_weights)]))
+        non_trainable_count = int(
+            np.sum([K.count_params(p) for p in set(self.model.non_trainable_weights)]))
+        
+        print('Total params: {:,}'.format(trainable_count + non_trainable_count))
+        print('Trainable params: {:,}'.format(trainable_count))
+        print('Non-trainable params: {:,}'.format(non_trainable_count))
 
 
 
@@ -223,6 +253,7 @@ class CNNTextClassifier():
 
         
         history = self.model.fit(self.train_X_ints, self.train_y, batch_size=batch_size, epochs=num_epochs, verbose=1, validation_data=(self.val_X_ints,self.val_y))
+        
         return history
 
 
@@ -237,25 +268,29 @@ class CNNTextClassifier():
         y_true = self.val_y
         y_pred = self.predict(cn.val_X_ints, return_probabilities = False)
         
-        true_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 1.)), axis = 0)
-        true_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 0.)), axis = 0)
-        false_neg = np.mean(np.logical_and((y_pred == 0.), (y_true == 1.)), axis = 0)
-        false_pos = np.mean(np.logical_and((y_pred == 1.), (y_true == 0.)), axis = 0)
+        true_pos = np.logical_and((y_pred == 1.), (y_true == 1.))
+        true_neg = np.logical_and((y_pred == 0.), (y_true == 0.))
+        false_neg = np.logical_and((y_pred == 0.), (y_true == 1.))
+        false_pos = np.logical_and((y_pred == 1.), (y_true == 0.))
         
-        accs = true_pos + true_neg
-        sens = true_pos / (true_pos + false_neg)
-        prec = true_pos / (true_pos + false_pos)
         
         for i,cat in enumerate(self.ylabels):
             print('\n\nFor category {}'.format(cat))
-            print('True positive rate is  {:.3f}'.format(true_pos[i]))
-            print('True negative rate is  {:.3f}'.format(true_neg[i]))
-            print('False positive rate is {:.3f}'.format(false_pos[i]))
-            print('False negative rate is {:.3f}'.format(false_neg[i]))
+            
+            tp = true_pos[:,i].mean()
+            tn = true_neg[:,i].mean()
+            fp = false_pos[:,i].mean()
+            fn = false_neg[:,i].mean()
+            
+            
+            print('True positive rate is  {:.3f}'.format(tp))
+            print('True negative rate is  {:.3f}'.format(tn))
+            print('False positive rate is {:.3f}'.format(fp))
+            print('False negative rate is {:.3f}'.format(fn))
     
-            print('Accuracy is    {:.3f}'.format(accs[i]))
-            print('Sensitivity is {:.3f}'.format(sens[i]))
-            print('Precision is   {:.3f}'.format(prec[i]))
+            print('Accuracy is    {:.3f}'.format(tp + tn))
+            print('Sensitivity is {:.3f}'.format(tp/(tp+fn)))
+            print('Precision is   {:.3f}'.format(tp/(tp+fp)))
     
     
         
@@ -263,11 +298,19 @@ class CNNTextClassifier():
         
         print('\n\nCategory              sens   prec   acc')
         for i,cat in enumerate(self.ylabels):
-            print('{:<20}  {:.3f}  {:.3f}  {:.3f}'.format(cat, sens[i], prec[i], accs[i]))
+            tp = true_pos[:,i].mean()
+            tn = true_neg[:,i].mean()
+            fp = false_pos[:,i].mean()
+            fn = false_neg[:,i].mean()            
+            print('{:<20}  {:.3f}  {:.3f}  {:.3f}'.format(cat, (tp/(tp+fn)), (tp/(tp+fp)), (tp + tn)))
         
-        print('\n\nAverage accuracy: {:.3f}'.format(np.mean(accs)))
-        print('Average precission: {:.3f}'.format(np.mean(prec)))
-        print('Average sensitivity: {:.3f}'.format(np.mean(sens)))
+        tp = true_pos.mean()
+        tn = true_neg.mean()
+        fp = false_pos.mean()
+        fn = false_neg.mean()   
+        print('\n\nAverage accuracy: {:.3f}'.format(np.mean((tp + tn))))
+        print('Average precission: {:.3f}'.format(np.mean(tp/(tp+fp))))
+        print('Average sensitivity: {:.3f}'.format(np.mean(tp/(tp+fn))))
         
             
 
@@ -318,8 +361,9 @@ if __name__ == "__main__":
     
     
     print('Loaded data')
-#    class_weights = 0.1/np.mean(train_y, axis = 0)
-    class_weights = np.ones((train_y.shape[1]))
+    class_weights = 1/np.mean(train_y, axis = 0)
+    class_weights /= np.mean(class_weights)
+#    class_weights = np.ones((train_y.shape[1]))
     
     
     ###truncated google news embedding:
@@ -340,6 +384,7 @@ if __name__ == "__main__":
     cnn_params = {'cnn_filters' : [(3,100), (4,100),(5,100)],
                           'pos_weights' : class_weights,
                           'optimizer' : Adam(lr=0.001),
+                          'optimizer2' : Adam(lr=0.0001),
                           'wvec_trainable' : False, 
                           'norm_wvecs' : True}      
 
@@ -357,12 +402,24 @@ if __name__ == "__main__":
 
     cn.build()
     
-    history = cn.train(batch_size=50, num_epochs=5)
+    history1 = cn.train(batch_size=50, num_epochs=15)
+    
+#    print('Train 1 done')
+    
+#    cn.rebuild_model()
+#    print('Rebuild done')
+#    history2 = cn.train(batch_size=50, num_epochs=5)
     savepath = 'save/cnn_model.h5'
     cn.model.save(savepath)
     
     cn.evaluate()    
+    
+    val_loss, val_sens, val_prec = cn.model.evaluate(x = cn.val_X_ints, y = cn.val_y)
 
+    
+    print('\n\nval loss: {:.4f}'.format(np.mean(val_loss)))
+    print('val precission: {:.4f}'.format(np.mean(val_sens)))
+    print('val sensitivity: {:.4f}'.format(np.mean(val_prec)))    
     
 
     #test embeddings:
